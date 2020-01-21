@@ -158,3 +158,51 @@ $(document).on('keypress', '[data-behavior~=room_speaker]', function(event) {
   }
 });
 ```
+
+10. 入力文字列をDBに保存
+```
+# app/channels/room_channel.rb
+class RoomChannel < ApplicationCable::Channel
+:
+  def speak(data)
+    Message.create! content: data['message']
+  end
+```
+
+11. ジョブの作成
+```
+bundle exec rails g job MessageBroadcast
+```
+
+```
+# app/jobs/message_broadcast_job.rb
+class MessageBroadcastJob < ApplicationJob
+  queue_as :default
+
+  def perform(message)
+    ActionCable.server.broadcast 'room_channel', message: render_message(message)
+  end
+
+  private
+
+  def render_message(message)
+    ApplicationController.renderer.render partial: 'messages/message', locals: { message: message }
+  end
+end
+```
+
+12. モデルの編集
+```
+class Message < ApplicationRecord
+  validates :content, presence: true
+  after_create_commit { MessageBroadcastJob.perform_later self }
+end
+```
+
+13. 画面に文字を表示
+```
+# app/javascript/channels/room_channel.js
+  received(data) {
+    return $('#messages').append(data['message'])
+  },
+```

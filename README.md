@@ -56,11 +56,11 @@ end
 
 6. データの登録
 ```
-docker-compose exec rails bundle exec rails c
+bundle exec rails c
 irb(main):001:0> Message.create! content: 'Hello'
 ```
 
-7. チャネルの作成
+7. jQueryの追加
 ```
 yarn add jquery
 ```
@@ -85,4 +85,76 @@ module.exports = environment
 # app/javascript/packs/application.js
 :
 require('jquery')
+```
+
+8. チャネルの作成
+```
+bundle exec rails g channel room speak
+```
+
+```
+# app/channels/room_channel.rb
+class RoomChannel < ApplicationCable::Channel
+  def subscribed
+    stream_from "room_channel"
+  end
+
+  def unsubscribed
+    # Any cleanup needed when channel is unsubscribed
+  end
+
+  def speak(data)
+    ActionCable.server.broadcast 'room_channel', message: data['message']
+  end
+end
+```
+
+```
+# app/javascript/channels/room_channel.js
+consumer.subscriptions.create("RoomChannel", {
+  connected() {
+    // Called when the subscription is ready for use on the server
+  },
+
+  disconnected() {
+    // Called when the subscription has been terminated by the server
+  },
+
+  received(data) {
+    return alert(data['message'])
+  },
+
+  speak: function(message) {
+    return this.perform('speak', {
+      message: message
+    })
+  }
+});
+```
+
+9. フォームの作成
+```
+# app/views/rooms/show.html.erb
+<h1>Chat room</h1>
+<div id='messages'>
+  <%= render @messages %>
+</div>
+
+<%= label_tag :content, 'Say something:' %>
+<%= text_field_tag :content, nil, data: { behavior: 'room_speaker' } %>
+```
+
+```
+# app/javascript/channels/room_channel.js
+const chatChannel = consumer.subscriptions.create("RoomChannel", {
+  // ...
+});
+
+$(document).on('keypress', '[data-behavior~=room_speaker]', function(event) {
+  if (event.keyCode === 13) {
+    chatChannel.speak(event.target.value);
+    event.target.value = '';
+    return event.preventDefault();
+  }
+});
 ```
